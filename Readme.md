@@ -1,4 +1,4 @@
-# Bot for instagramm
+# Bot for instagram
 
 
 This bot will allow you to automate your instagram's stuff.
