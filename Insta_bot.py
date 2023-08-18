@@ -3,9 +3,13 @@ import os
 import wget
 import time
 import pickle
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -13,15 +17,25 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 
 
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+
+name = os.getenv('NAME')
+psw = os.getenv('PSW')
+vpn_extension_path = '/home/fersus/.config/google-chrome/Default/Extensions/hipncndjamdcmphkgngojegjblibadbe/1.12.1_0'
+
 class InstagramBot:
     # Insta bot by Fersus
-    def __init__(self, username, password, chrome_driver_path):
+    def __init__(self, username, password, chrome_driver_path=0):
         self.username = username
         self.password = password
         self.options = webdriver.ChromeOptions()
-        self.service = Service(executable_path=chrome_driver_path)
+        self.options.add_argument('--load-extension={}'.format(vpn_extension_path))
+        self.service = ChromeService(ChromeDriverManager().install())
         self.options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+             AppleWebKit/537.36 (KHTML, like Gecko) \
+              Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
         self.options.add_argument(
             '--disable-blink-features=AutomationControlled')
         self.driver = webdriver.Chrome(
@@ -239,3 +253,7 @@ class InstagramBot:
                             print(ex)
             except Exception as ex:
                 print(ex)
+
+
+bot = InstagramBot(username=name, password=psw)
+bot.login()
