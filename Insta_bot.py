@@ -22,44 +22,43 @@ load_dotenv(dotenv_path=env_path)
 
 name = os.getenv('NAME')
 psw = os.getenv('PSW')
-vpn_extension_path = '/home/fersus/.config/google-chrome/Default/Extensions/hipncndjamdcmphkgngojegjblibadbe/1.12.1_0'
+
 
 class InstagramBot:
     # Insta bot by Fersus
-    def __init__(self, username, password, chrome_driver_path=0):
+    def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.options = webdriver.ChromeOptions()
-        self.options.add_argument('--load-extension={}'.format(vpn_extension_path))
         self.service = ChromeService(ChromeDriverManager().install())
-        self.options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-             AppleWebKit/537.36 (KHTML, like Gecko) \
-              Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
-        self.options.add_argument(
-            '--disable-blink-features=AutomationControlled')
-        self.driver = webdriver.Chrome(
-            service=self.service, options=self.options)
+        self.driver = webdriver.Chrome(service=self.service)
 
+        
     def close_browser(self):
         self.driver.close()
         self.driver.quit()
 
     def login(self):
-        # authorization
-        self.driver.get('https://www.instagram.com/')
-        time.sleep(3)
-        login_input = self.driver.find_element(By.NAME, 'username')
-        login_input.clear()
-        login_input.send_keys(self.username)
-        time.sleep(5)
-        psw_input = self.driver.find_element(By.NAME, 'password')
-        psw_input.clear()
-        psw_input.send_keys(self.password)
-        time.sleep(5)
-        # press_ent
-        psw_input.send_keys(Keys.ENTER)
-        time.sleep(5)
+        try:
+            self.driver.implicitly_wait(10)
+            self.driver.get('https://www.instagram.com/')
+
+            u_name_input = self.driver.find_element(By.NAME, "username")
+            u_name_input.clear()
+            u_name_input.send_keys(self.username)
+
+            psw_input = self.driver.find_element(By.NAME, "password")
+            psw_input.clear()
+            psw_input.send_keys(self.password)
+
+            psw_input.send_keys(Keys.ENTER)
+            
+            time.sleep(10)
+
+        except Exception as ex:
+            print(ex)
+            self.driver.close()
+            self.driver.quit()
+
         # cookies
         # collect cookies
         # pickle.dump(self.driver.get_cookies(), open(f'{self.username}_cookies', 'wb'))
@@ -257,3 +256,4 @@ class InstagramBot:
 
 bot = InstagramBot(username=name, password=psw)
 bot.login()
+bot.close_browser()

@@ -1,2 +1,4 @@
 /insta
 .env
+/venv
+login.py
