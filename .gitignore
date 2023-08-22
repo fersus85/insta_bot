@@ -1,4 +1,4 @@
-/insta
 .env
 /venv
 login.py
+**/__pycache__/
