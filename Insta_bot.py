@@ -9,12 +9,14 @@ from dotenv import load_dotenv
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
+
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 env_path = Path('.') / '.env'
@@ -37,7 +39,8 @@ class InstagramBot:
         self.driver.close()
         self.driver.quit()
 
-    def login(self):
+
+    def login_collect_cookie(self) -> None:
         try:
             self.driver.implicitly_wait(10)
             self.driver.get('https://www.instagram.com/')
@@ -52,30 +55,37 @@ class InstagramBot:
 
             psw_input.send_keys(Keys.ENTER)
             
-            time.sleep(10)
+            time.sleep(5)
+            pickle.dump(self.driver.get_cookies(),
+                         open(f'{self.username}_cookies', 'wb'))
 
         except Exception as ex:
             print(ex)
-            self.driver.close()
-            self.driver.quit()
 
-        # cookies
-        # collect cookies
-        # pickle.dump(self.driver.get_cookies(), open(f'{self.username}_cookies', 'wb'))
 
-    def login_with_cookie(self):
-        self.driver.get('https://www.instagram.com/')
-        time.sleep(3)
-        # load cookies
-        for cookie in pickle.load(open('../Gui/app_dzen_cookies', 'rb')):
-            self.driver.add_cookie(cookie)
-        time.sleep(3)
-        self.driver.refresh()
-        self.driver.implicitly_wait(5)
-        buttons = self.driver.find_element(
-            By.CSS_SELECTOR, "div[role='dialog']").find_elements(By.TAG_NAME, 'button')
-        buttons[1].click()
-        time.sleep(5)
+    def login_with_cookie(self, headless: bool=False) -> None:
+        if headless:
+            options = Options()
+            options.add_argument("--headless=new")
+            self.driver = webdriver.Chrome(
+                service=ChromeService(ChromeDriverManager().install()), options=options)
+        try:
+            self.driver.get('https://www.instagram.com/')
+
+            self.driver.implicitly_wait(10)
+            
+            for cookie in pickle.load(open('deriabin_evg_cookies', 'rb')):
+                self.driver.add_cookie(cookie)
+            time.sleep(3)
+            self.driver.refresh()
+
+            buttons = self.driver.find_element(
+                By.CSS_SELECTOR,"div[role='dialog']").find_elements(
+                By.TAG_NAME, 'button')
+            buttons[1].click()
+        except Exception as ex:
+            print(ex)
+
 
     def liking_posts_user(self, user, scroll=2):
         # search user_page
@@ -112,7 +122,7 @@ class InstagramBot:
                 self.driver.get(post)
                 # Press like button
                 WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
-                    (By.XPATH, '/html/body/div[1]/div/div/div/div[1]/div/div/div/div[1]/div[1]/div[2]/section/main/div[1]/div[1]/article/div/div[2]/div/div[2]/section[1]/span[1]/button'))).click()
+                    (By.XPATH, ''))).click()
                 time.sleep(10)
             except Exception as ex:
                 print(ex)
@@ -180,17 +190,18 @@ class InstagramBot:
         time.sleep(3)
         print('watch followers...')
         numb_followers = driver.find_element(By.XPATH,
-                                             '/html/body/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[1]/div[2]/section/main/div/header/section/ul/li[2]/a/div/span').get_attribute('title')
+                                             '').get_attribute('title')
         driver.find_element(
-            By.XPATH, '/html/body/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[1]/div[2]/section/main/div/header/section/ul/li[2]/a').click()
+            By.XPATH, '').click()
 
         print(numb_followers)
         pop_up_window = driver.find_element(By.XPATH,
-                                            '/html/body/div[2]/div/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[2]')
+                                            '')
         count = numb_iter
 
         for i in range(1, numb_iter):
-            driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
+            driver.execute_script(
+                'arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
                                   pop_up_window)
             time.sleep(random.randrange(7, 9))
             count -= 1
@@ -255,5 +266,5 @@ class InstagramBot:
 
 
 bot = InstagramBot(username=name, password=psw)
-bot.login()
+bot.login_with_cookie()
 bot.close_browser()
