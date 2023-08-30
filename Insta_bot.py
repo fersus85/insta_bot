@@ -87,27 +87,23 @@ class InstagramBot:
             print(ex)
 
 
-    def liking_posts_user(self, user, scroll=2):
-        # search user_page
-        self.driver.find_element(
-            By.CSS_SELECTOR, 'svg[aria-label="Поисковый запрос"]').click()
-        input_requests = self.driver.find_element(
-            By.CSS_SELECTOR, "input[aria-label='Ввод поискового запроса'")
-        input_requests.clear()
-        input_requests.send_keys(user)
-        time.sleep(5)
-        input_requests.send_keys(Keys.ENTER)
-        time.sleep(7)
-        input_requests.send_keys(Keys.ENTER)
-        time.sleep(7)
+    def collect_posts_user(self, user: str, scroll: int=4):
+        self.driver.implicitly_wait(10)
+        self.driver.get(f'https://www.instagram.com/{user}/')
         # Scroll down
         for i in range(1, scroll):
             self.driver.execute_script(
                 'window.scrollTo(0, document.body.scrollHeight);')
-            time.sleep(random.randrange(7, 10))
+            time.sleep(random.randrange(3, 7))
         # Collect all reference from page
         links = self.driver.find_elements(By.TAG_NAME, 'a')
-        posts = []
+        posts_urls = [item.get_attribute('href') for item in links if "/p/" in item.get_attribute('href')]
+        with open(f"{user}'s_posts", 'w') as file:
+            for url in posts_urls:
+                file.write(url)
+
+
+    def likes_on_post(self):
         # Filter post's url
         for item in links[0:2]:
             links = item.get_attribute('href')
@@ -267,4 +263,5 @@ class InstagramBot:
 
 bot = InstagramBot(username=name, password=psw)
 bot.login_with_cookie()
+bot.collect_posts_user('explor1r')
 bot.close_browser()
