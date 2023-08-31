@@ -4,6 +4,7 @@ import wget
 import time
 import pickle
 from pathlib import Path
+from typing import Optional, TypeAlias
 
 from dotenv import load_dotenv
 
@@ -25,10 +26,14 @@ load_dotenv(dotenv_path=env_path)
 name = os.getenv('NAME')
 psw = os.getenv('PSW')
 
+instagram_username: TypeAlias = str
+instagram_psw: TypeAlias = str
+
 
 class InstagramBot:
     # Insta bot by Fersus
-    def __init__(self, username, password):
+    def __init__(self, username: instagram_username,
+                  password: instagram_psw):
         self.username = username
         self.password = password
         self.service = ChromeService(ChromeDriverManager().install())
@@ -87,39 +92,34 @@ class InstagramBot:
             print(ex)
 
 
-    def collect_posts_user(self, user: str, scroll: int=4):
+    def collect_posts_user(self, user: str, scroll: int=4,
+                            save_to_file: bool = False) -> Optional[list]:
         self.driver.implicitly_wait(10)
-        self.driver.get(f'https://www.instagram.com/{user}/')
-        # Scroll down
-        for i in range(1, scroll):
-            self.driver.execute_script(
-                'window.scrollTo(0, document.body.scrollHeight);')
-            time.sleep(random.randrange(3, 7))
-        # Collect all reference from page
-        links = self.driver.find_elements(By.TAG_NAME, 'a')
-        posts_urls = [item.get_attribute('href') for item in links if "/p/" in item.get_attribute('href')]
-        with open(f"{user}'s_posts", 'w') as file:
-            for url in posts_urls:
-                file.write(url)
+        try:
+            self.driver.get(f'https://www.instagram.com/{user}/')
+            for i in range(1, scroll):
+                self.driver.execute_script(
+                    'window.scrollTo(0, document.body.scrollHeight);')
+                time.sleep(random.randrange(3, 7))
+            links = self.driver.find_elements(By.TAG_NAME, 'a')
+            posts_urls = [item.get_attribute('href') for item in links if "/p/" in item.get_attribute('href')]
+            if save_to_file:
+                with open(f"{user}'s_posts", 'w') as file:
+                    for url in posts_urls:
+                        file.write(url)
+            else:
+                return posts_urls
+        except Exception as ex:
+            print(ex)
 
-
-    def likes_on_post(self):
-        # Filter post's url
-        for item in links[0:2]:
-            links = item.get_attribute('href')
-            if '/p/' in links:
-                posts.append(links)
-        # print(posts)
-        print(len(posts))
-        self.driver.implicitly_wait(5)
-        # Iteration through posts
-        for post in posts[0:5]:
+    def likes_on_post(self, posts: list) -> None:
+        self.driver.implicitly_wait(10)
+        for post in posts[0:3]:
             try:
                 self.driver.get(post)
-                # Press like button
                 WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
-                    (By.XPATH, ''))).click()
-                time.sleep(10)
+                    (By.CLASS_NAME, "xp7jhwk"))).click()
+                time.sleep(random.randrange(3, 5))
             except Exception as ex:
                 print(ex)
                 self.close_browser()
@@ -263,5 +263,6 @@ class InstagramBot:
 
 bot = InstagramBot(username=name, password=psw)
 bot.login_with_cookie()
-bot.collect_posts_user('explor1r')
+posts = bot.collect_posts_user('explor1r')
+bot.likes_on_post(posts)
 bot.close_browser()
