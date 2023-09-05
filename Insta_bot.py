@@ -145,12 +145,7 @@ class InstagramBot:
                 time.sleep(random.randrange(3, 7))
 
             links = self.driver.find_elements(By.TAG_NAME, 'img')
-            for el in links:
-                print(el.get_attribute('value'))
-                print(el.__dict__())
-                # print(el.accessible_name, el.aria_role)
             images = [item.get_attribute('src') for item in links]
-            # print(images[0])
     
             path = os.getcwd()
             path = os.path.join(path, user)
@@ -165,50 +160,34 @@ class InstagramBot:
             print(ex)
         
 
-    def grab_followers(self, userpage, numb_iter):
-        driver = self.driver
-        driver.find_element(
-            By.CSS_SELECTOR, 'svg[aria-label="Поисковый запрос"]').click()
-        input_requests = driver.find_element(
-            By.CSS_SELECTOR, "input[aria-label='Ввод поискового запроса'")
-        input_requests.clear()
-        input_requests.send_keys(userpage)
-        time.sleep(5)
-        input_requests.send_keys(Keys.ENTER)
-        time.sleep(3)
-        input_requests.send_keys(Keys.ENTER)
-        time.sleep(3)
-        print('watch followers...')
-        numb_followers = driver.find_element(By.XPATH,
-                                             '').get_attribute('title')
-        driver.find_element(
-            By.XPATH, '').click()
+    def grab_followers(self,  user: str, numb_iter: int = 3) -> None:
+        ''' Write links user's followers in file '''
+        self.driver.implicitly_wait(10)
+        self.driver.get(f'https://www.instagram.com/{user}/')
 
-        print(numb_followers)
-        pop_up_window = driver.find_element(By.XPATH,
-                                            '')
-        count = numb_iter
+        xpath = '//header/section[1]/ul[1]/li[2]/a[1]'
+        if self._is_xpath_exist(xpath):
+            self.driver.find_element(By.XPATH, xpath).click()
+        else:
+            print('xpath was changed')
 
+        pop_up_window = self.driver.find_element(By.CLASS_NAME, '_aano')
         for i in range(1, numb_iter):
-            driver.execute_script(
+            self.driver.execute_script(
                 'arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
                                   pop_up_window)
-            time.sleep(random.randrange(7, 9))
-            count -= 1
-            print(f'left {count} times')
-        time.sleep(5)
-        links = driver.find_elements(By.TAG_NAME, 'a')
-        hrefs = []
-        for link in links:
-            href = link.get_attribute('href')
-            if '/p/' not in href:
-                hrefs.append(href)
-                # print(href)
-        hrefs = set(hrefs)
-        hrefs = list(hrefs)
-        with open(f'links of followers/links of {userpage} followers.txt', 'w') as file:
-            for href in hrefs[28:]:
-                file.write(href + '/n')
+            time.sleep(random.randrange(4, 7))
+        
+        links = self.driver.find_elements(By.TAG_NAME, 'a')
+
+        hrefs = set(
+            [link.get_attribute('href') 
+             for link in links if '/p/' not in link.get_attribute('href')]
+             )
+        
+        with open(f"{user}'s followers.txt", 'w') as file:
+            for href in hrefs:
+                file.write(href + '\n')
 
     def follow_and_like(self, filename, num_users=70):
         driver = self.driver
@@ -257,7 +236,8 @@ class InstagramBot:
 
 bot = InstagramBot(username=name, password=psw)
 bot.login_with_cookie()
+bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
 # bot.likes_on_post(posts)
-bot.download_img('explor1r')
+# bot.download_img('explor1r')
 bot.close_browser()
