@@ -1,30 +1,29 @@
-import random
 import os
+import re
 import wget
 import time
 import pickle
+import random
 from pathlib import Path
 from typing import Optional, TypeAlias
 
 from dotenv import load_dotenv
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.chrome.service import Service as ChromeService
 
 from webdriver_manager.chrome import ChromeDriverManager
 
 
-env_path = Path('.') / '.env'
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
-name = os.getenv('NAME')
-psw = os.getenv('PSW')
+NAME = os.getenv('NAME')
+PSW = os.getenv('PSW')
 
 instagram_username: TypeAlias = str
 instagram_psw: TypeAlias = str
@@ -94,8 +93,22 @@ class InstagramBot:
         except Exception as ex:
             print(ex)
 
-
-    def collect_posts_user(self, user: str, scroll: int=4,
+    def _collect_posts(self, save_to_file: bool = False) -> list:
+        try:
+            links = self.driver.find_elements(By.TAG_NAME, 'a')
+            posts_urls = [item.get_attribute('href') 
+                          for item in links if "/p/" in item.get_attribute('href')]
+            if save_to_file:
+                user = self.driver.current_url.split('/')[3]
+                with open(f"{user}'s_posts", 'w') as file:
+                    for url in posts_urls:
+                        file.write(url)
+            else:
+                return posts_urls
+        except Exception as ex:
+            print(ex)
+        
+    def collect_posts_user(self, user: str, scroll: int=2,
                             save_to_file: bool = False) -> Optional[list]:
         ''' save user's posts in file or return list with its '''
         self.driver.implicitly_wait(10)
@@ -105,21 +118,14 @@ class InstagramBot:
                 self.driver.execute_script(
                     'window.scrollTo(0, document.body.scrollHeight);')
                 time.sleep(random.randrange(3, 7))
-            links = self.driver.find_elements(By.TAG_NAME, 'a')
-            posts_urls = [item.get_attribute('href') for item in links if "/p/" in item.get_attribute('href')]
-            if save_to_file:
-                with open(f"{user}'s_posts", 'w') as file:
-                    for url in posts_urls:
-                        file.write(url)
-            else:
-                return posts_urls
+            return self._collect_posts(save_to_file)
         except Exception as ex:
             print(ex)
 
     def likes_on_post(self, posts: list) -> None:
         ''' press like button on posts '''
         self.driver.implicitly_wait(10)
-        for post in posts[0:3]:
+        for post in posts[:3]:
             try:
                 self.driver.get(post)
                 WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
@@ -170,7 +176,8 @@ class InstagramBot:
             self.driver.find_element(By.XPATH, xpath).click()
         else:
             print('xpath was changed')
-
+            self.close_browser()
+            
         pop_up_window = self.driver.find_element(By.CLASS_NAME, '_aano')
         for i in range(1, numb_iter):
             self.driver.execute_script(
@@ -184,58 +191,46 @@ class InstagramBot:
             [link.get_attribute('href') 
              for link in links if '/p/' not in link.get_attribute('href')]
              )
-        
+        clean_hrefs = re.findall(r'\w{5}\W{3}\w+.\w+.\w+\/\w+\/', hrefs)
         with open(f"{user}'s followers.txt", 'w') as file:
-            for href in hrefs:
+            for href in clean_hrefs:
                 file.write(href + '\n')
 
-    def follow_and_like(self, filename, num_users=70):
-        driver = self.driver
-        # open file with links
-        print('load links...')
+    def follow_and_like(self, filename: str) -> None:
+        ''' follow by users from file and press like on their posts ''' 
+        self.driver.implicitly_wait(10)
         with open(filename, 'r') as file:
             followers = file.read()
-            links = followers.split('/n')
-            # iterate through links
-            count = num_users
+            links = followers.split('\n')
             try:
                 for link in links:
-                    count -= 1
-                    print(f'Left {count} links')
-                    if link != 'https://www.instagram.com':
-                        driver.get(link)
-                        time.sleep(random.randrange(3, 5))
-                        sub_but = "/html/body/div[2]/div/div/div/div[1]/div/div/div/div[1]/section/main/div/header/section/div[1]/div[1]/div/div[1]/button"
-                        if self.is_xpath_exist(sub_but):
-                            driver.find_element(By.XPATH, sub_but).click()
-                            time.sleep(random.randrange(3, 5))
-                            if self.is_xpath_exist('/html/body/div[1]/div/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[3]/button[2]'):
-                                driver.find_element(
-                                    By.XPATH, '/html/body/div[1]/div/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[3]/button[2]').click()
-                        try:
-                            links = driver.find_elements(By.TAG_NAME, 'a')
-                            posts = []
-                            # Filter post's url
-                            for item in links:
-                                links = item.get_attribute('href')
-                                if '/p/' in links:
-                                    posts.append(links)
-                            print(len(posts))
-                            numbers_likes = random.randrange(2, 5)
-                            for post in posts[0:numbers_likes]:
-                                driver.get(post)
-                                # Press like button
-                                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH,
-                                                                                            '/html/body/div[2]/div/div/div/div[1]/div/div/div/div[1]/section/main/div[1]/div[1]/article/div/div[2]/div/div[2]/section[1]/span[1]/button'))).click()
-                                time.sleep(random.randrange(3, 5))
-                        except Exception as ex:
-                            print(ex)
+                    self.driver.get(link)
+                    self.driver.find_element(
+                        By.CLASS_NAME, "_acan _acap _acas _aj1-").click()
+                    posts = self._collect_posts()
+                    self.likes_on_post(posts)
+                    # links = driver.find_elements(By.TAG_NAME, 'a')
+                        # posts = []
+                        # # Filter post's url
+                        # for item in links:
+                        #     links = item.get_attribute('href')
+                        #     if '/p/' in links:
+                        #         posts.append(links)
+                        # print(len(posts))
+                        # numbers_likes = random.randrange(2, 5)
+                        # for post in posts[0:numbers_likes]:
+                        #     driver.get(post)
+                        #     # Press like button
+                        #     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH,
+                        #                                                                 '/html/body/div[2]/div/div/div/div[1]/div/div/div/div[1]/section/main/div[1]/div[1]/article/div/div[2]/div/div[2]/section[1]/span[1]/button'))).click()
+                        #     time.sleep(random.randrange(3, 5))
+                        
             except Exception as ex:
                 print(ex)
 
 
-bot = InstagramBot(username=name, password=psw)
-bot.login_with_cookie()
+bot = InstagramBot(username=NAME, password=PSW)
+bot.login_with_cookie(headless=True)
 bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
 # bot.likes_on_post(posts)
