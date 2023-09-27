@@ -1,5 +1,4 @@
 .env
-/venv
 login.py
 **/__pycache__/
 like_user_post.py
