@@ -4,7 +4,6 @@ import wget
 import time
 import pickle
 import random
-from pathlib import Path
 from typing import Optional, TypeAlias
 
 from dotenv import load_dotenv
@@ -24,6 +23,7 @@ load_dotenv()
 
 NAME = os.getenv('NAME')
 PSW = os.getenv('PSW')
+INSTAGRAM = 'https://www.instagram.com/'
 
 instagram_username: TypeAlias = str
 instagram_psw: TypeAlias = str
@@ -31,25 +31,23 @@ instagram_psw: TypeAlias = str
 
 class InstagramBot:
     # Insta bot by Fersus
-    def __init__(self, username: instagram_username,
-                  password: instagram_psw):
+    def __init__(self, username: instagram_username, password: instagram_psw):
+        ''' Инициализация бота '''
         self.username = username
         self.password = password
         self.service = ChromeService(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=self.service)
 
-        
     def close_browser(self):
-        ''' close webdriver '''
+        ''' Закрывает браузер '''
         self.driver.close()
         self.driver.quit()
 
-
-    def login_collect_cookie(self) -> None:
-        ''' Login in instagram account with usrname and psw, collect cookie '''
+    def login_and_collect_cookies(self) -> None:
+        ''' Вход в аккаунт instagram, используя имя пользователя и пароль '''
         try:
             self.driver.implicitly_wait(10)
-            self.driver.get('https://www.instagram.com/')
+            self.driver.get(INSTAGRAM)
 
             u_name_input = self.driver.find_element(By.NAME, "username")
             u_name_input.clear()
@@ -60,34 +58,33 @@ class InstagramBot:
             psw_input.send_keys(self.password)
 
             psw_input.send_keys(Keys.ENTER)
-            
             time.sleep(5)
             pickle.dump(self.driver.get_cookies(),
-                         open(f'{self.username}_cookies', 'wb'))
+                        open(f'{self.username}_cookies', 'wb'))
 
         except Exception as ex:
             print(ex)
 
-
-    def login_with_cookie(self, headless: bool=False) -> None:
+    def login_use_cookies(self, headless: bool = False) -> None:
         ''' Login in instagram account if you have cookie '''
         if headless:
             options = Options()
             options.add_argument("--headless=new")
             self.driver = webdriver.Chrome(
-                service=ChromeService(ChromeDriverManager().install()), options=options)
+                service=ChromeService(ChromeDriverManager().install()),
+                options=options)
         try:
-            self.driver.get('https://www.instagram.com/')
+            self.driver.get(INSTAGRAM)
 
             self.driver.implicitly_wait(10)
-            
+
             for cookie in pickle.load(open('deriabin_evg_cookies', 'rb')):
                 self.driver.add_cookie(cookie)
             time.sleep(3)
             self.driver.refresh()
 
             buttons = self.driver.find_element(
-                By.CSS_SELECTOR,"div[role='dialog']").find_elements(
+                By.CSS_SELECTOR, "div[role='dialog']").find_elements(
                 By.TAG_NAME, 'button')
             buttons[1].click()
         except Exception as ex:
@@ -96,8 +93,9 @@ class InstagramBot:
     def _collect_posts(self, save_to_file: bool = False) -> list:
         try:
             links = self.driver.find_elements(By.TAG_NAME, 'a')
-            posts_urls = [item.get_attribute('href') 
-                          for item in links if "/p/" in item.get_attribute('href')]
+            posts_urls = [item.get_attribute('href')
+                          for item in links
+                          if "/p/" in item.get_attribute('href')]
             if save_to_file:
                 user = self.driver.current_url.split('/')[3]
                 with open(f"{user}'s_posts", 'w') as file:
@@ -107,13 +105,14 @@ class InstagramBot:
                 return posts_urls
         except Exception as ex:
             print(ex)
-        
-    def collect_posts_user(self, user: str, scroll: int=2,
-                            save_to_file: bool = False) -> Optional[list]:
+
+    def collect_posts_user(self, user: str,
+                           scroll: int = 2,
+                           save_to_file: bool = False) -> Optional[list]:
         ''' save user's posts in file or return list with its '''
         self.driver.implicitly_wait(10)
         try:
-            self.driver.get(f'https://www.instagram.com/{user}/')
+            self.driver.get(f'{INSTAGRAM}/{user}/')
             for i in range(1, scroll):
                 self.driver.execute_script(
                     'window.scrollTo(0, document.body.scrollHeight);')
@@ -122,14 +121,16 @@ class InstagramBot:
         except Exception as ex:
             print(ex)
 
-    def likes_on_post(self, posts: list) -> None:
-        ''' press like button on posts '''
+    def press_like_on_posts(self, posts: list) -> None:
+        ''' press like button on each post in posts '''
         self.driver.implicitly_wait(10)
         for post in posts[:3]:
             try:
                 self.driver.get(post)
-                WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
-                    (By.CLASS_NAME, "xp7jhwk"))).click()
+                WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.CLASS_NAME, "xp7jhwk")
+                        )).click()
                 time.sleep(random.randrange(3, 5))
             except Exception as ex:
                 print(ex)
@@ -139,12 +140,11 @@ class InstagramBot:
         ''' inspect is exist xpath on a page '''
         return bool(self.driver.find_elements(By.XPATH, xpath))
 
-
-    def download_img(self, user: str, scroll: int=2) -> None:
+    def download_images(self, user: str, scroll: int = 2) -> None:
         ''' download images from instagram page '''
         self.driver.implicitly_wait(10)
         try:
-            self.driver.get(f'https://www.instagram.com/{user}/')
+            self.driver.get(f'{INSTAGRAM}/{user}/')
             for i in range(1, scroll):
                 self.driver.execute_script(
                     'window.scrollTo(0, document.body.scrollHeight);')
@@ -152,7 +152,7 @@ class InstagramBot:
 
             links = self.driver.find_elements(By.TAG_NAME, 'img')
             images = [item.get_attribute('src') for item in links]
-    
+
             path = os.getcwd()
             path = os.path.join(path, user)
             os.mkdir(path)
@@ -164,12 +164,11 @@ class InstagramBot:
                 counter += 1
         except Exception as ex:
             print(ex)
-        
 
     def grab_followers(self,  user: str, numb_iter: int = 3) -> None:
         ''' Write links user's followers in file '''
         self.driver.implicitly_wait(10)
-        self.driver.get(f'https://www.instagram.com/{user}/')
+        self.driver.get(f'{INSTAGRAM}/{user}/')
 
         xpath = '//header/section[1]/ul[1]/li[2]/a[1]'
         if self._is_xpath_exist(xpath):
@@ -177,26 +176,30 @@ class InstagramBot:
         else:
             print('xpath was changed')
             self.close_browser()
-            
+
         pop_up_window = self.driver.find_element(By.CLASS_NAME, '_aano')
         for i in range(1, numb_iter):
-            self.driver.execute_script(
-                'arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
-                                  pop_up_window)
+            scr = 'arguments[0].scrollTop = \
+                arguments[0].scrollTop + arguments[0].offsetHeight;'
+            self.driver.execute_script(scr, pop_up_window)
             time.sleep(random.randrange(4, 7))
-        
+
         links = self.driver.find_elements(By.TAG_NAME, 'a')
 
-        hrefs = [link.get_attribute('href') 
+        hrefs = [link.get_attribute('href')
                  for link in links if '/p/' not in link.get_attribute('href')]
-             
+
         clean_hrefs = set(
             re.findall(r'\w{5}\W{3}\w+.\w+.\w+\/\w+\/', '\n'.join(hrefs))
         )
-        tech_links = ['https://www.instagram.com/direct/', 'https://about.instagram.com/blog/',
-                      'https://about.meta.com/technologies/', 'https://about.meta.com/technologies/',
-                      'https://www.instagram.com/web/', 'https://www.instagram.com/reels/',
-                      'https://developers.facebook.com/docs/', 'https://www.instagram.com/about/'
+        tech_links = ['https://www.instagram.com/direct/',
+                      'https://about.instagram.com/blog/',
+                      'https://about.meta.com/technologies/',
+                      'https://about.meta.com/technologies/',
+                      'https://www.instagram.com/web/',
+                      'https://www.instagram.com/reels/',
+                      'https://developers.facebook.com/docs/',
+                      'https://www.instagram.com/about/'
                       ]
         with open(f"{user}'s followers.txt", 'w') as file:
             for href in clean_hrefs:
@@ -204,7 +207,7 @@ class InstagramBot:
                     file.write(href + '\n')
 
     def follow_and_like(self, filename: str) -> None:
-        ''' follow by users from file and press like on their posts ''' 
+        ''' follow by users from file and press like on their posts '''
         self.driver.implicitly_wait(10)
         with open(filename, 'r') as file:
             followers = file.read()
@@ -222,14 +225,14 @@ class InstagramBot:
                         self.likes_on_post(posts)
                     else:
                         print('no xpass')
-                        
+
             except Exception as ex:
                 print(ex)
 
 
 bot = InstagramBot(username=NAME, password=PSW)
-bot.login_with_cookie()
-bot.follow_and_like("explor1r's followers.txt")
+bot.login_and_collect_cookies()
+# bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
 # bot.likes_on_post(posts)
