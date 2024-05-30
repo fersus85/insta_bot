@@ -36,15 +36,40 @@ class InstagramBot:
         self.username = username
         self.password = password
         self.service = ChromeService(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=self.service)
+
+    def create_webdriver(self, headless=False):
+        ''' Создаёт веб-драйвер для использования браузера '''
+        options = Options()
+        if headless:
+            options.add_argument("--headless=new")
+        return webdriver.Chrome(service=self.service, options=options)
 
     def close_browser(self):
         ''' Закрывает браузер '''
         self.driver.close()
         self.driver.quit()
 
+    def _collect_cookies(self) -> None:
+        ''' Сохраняет cookies в файл '''
+        pickle.dump(self.driver.get_cookies(),
+                    open(f'{self.username}_cookies', 'wb'))
+
+    def _load_cookies(self) -> None:
+        ''' Загружает cookies '''
+        for cookie in pickle.load(open(f'{self.username}_cookies', 'rb')):
+            self.driver.add_cookie(cookie)
+
+    def _add_headless_options(self):
+        options = Options()
+        options.add_argument("--headless=new")
+        self.driver = webdriver.Chrome(
+            service=ChromeService(ChromeDriverManager().install()),
+            options=options)
+
     def login_and_collect_cookies(self) -> None:
         ''' Вход в аккаунт instagram, используя имя пользователя и пароль '''
+        if self.headless:
+            self._add_headless_options(self)
         try:
             self.driver.implicitly_wait(10)
             self.driver.get(INSTAGRAM)
@@ -59,27 +84,20 @@ class InstagramBot:
 
             psw_input.send_keys(Keys.ENTER)
             time.sleep(5)
-            pickle.dump(self.driver.get_cookies(),
-                        open(f'{self.username}_cookies', 'wb'))
-
+            self._collect_cookies(self)
         except Exception as ex:
             print(ex)
 
     def login_use_cookies(self, headless: bool = False) -> None:
-        ''' Login in instagram account if you have cookie '''
-        if headless:
-            options = Options()
-            options.add_argument("--headless=new")
-            self.driver = webdriver.Chrome(
-                service=ChromeService(ChromeDriverManager().install()),
-                options=options)
+        ''' Вход в аккаунт instagram, используя cookies '''
+        if self.headless:
+            self._add_headless_options(self)
         try:
             self.driver.get(INSTAGRAM)
 
             self.driver.implicitly_wait(10)
 
-            for cookie in pickle.load(open('deriabin_evg_cookies', 'rb')):
-                self.driver.add_cookie(cookie)
+            self._load_cookies(self)
             time.sleep(3)
             self.driver.refresh()
 
@@ -230,11 +248,12 @@ class InstagramBot:
                 print(ex)
 
 
-bot = InstagramBot(username=NAME, password=PSW)
-bot.login_and_collect_cookies()
+# service = ChromeService(ChromeDriverManager().install())
+# bot = InstagramBot(username=NAME, password=PSW)
+# bot.login_and_collect_cookies()
 # bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
 # bot.likes_on_post(posts)
 # bot.download_img('explor1r')
-bot.close_browser()
+# bot.close_browser()
