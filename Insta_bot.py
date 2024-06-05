@@ -4,6 +4,7 @@ import wget
 import time
 import pickle
 import random
+import logging
 from typing import Optional, TypeAlias
 
 from dotenv import load_dotenv
@@ -18,6 +19,15 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 
 from webdriver_manager.chrome import ChromeDriverManager
 
+
+logger = logging.getLogger(name=__name__)
+logger.setLevel(logging.DEBUG)
+
+handler = logging.FileHandler(f'logs/{__name__}.log', mode='w')
+formatter = logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s")
+
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 load_dotenv()
 
@@ -37,76 +47,96 @@ class InstagramBot:
         self.password = password
         self.service = ChromeService(ChromeDriverManager().install())
 
-    def create_webdriver(self, headless=False):
+    def create_webdriver(self, headless: bool = False):
         ''' Создаёт веб-драйвер для использования браузера '''
         options = Options()
         if headless:
             options.add_argument("--headless=new")
-        return webdriver.Chrome(service=self.service, options=options)
-
-    def close_browser(self):
-        ''' Закрывает браузер '''
-        self.driver.close()
-        self.driver.quit()
-
-    def _collect_cookies(self) -> None:
-        ''' Сохраняет cookies в файл '''
-        pickle.dump(self.driver.get_cookies(),
-                    open(f'{self.username}_cookies', 'wb'))
-
-    def _load_cookies(self) -> None:
-        ''' Загружает cookies '''
-        for cookie in pickle.load(open(f'{self.username}_cookies', 'rb')):
-            self.driver.add_cookie(cookie)
-
-    def _add_headless_options(self):
-        options = Options()
-        options.add_argument("--headless=new")
-        self.driver = webdriver.Chrome(
-            service=ChromeService(ChromeDriverManager().install()),
-            options=options)
-
-    def login_and_collect_cookies(self) -> None:
-        ''' Вход в аккаунт instagram, используя имя пользователя и пароль '''
-        if self.headless:
-            self._add_headless_options(self)
         try:
-            self.driver.implicitly_wait(10)
-            self.driver.get(INSTAGRAM)
+            driver = webdriver.Chrome(service=self.service, options=options)
+            logger.debug('webdriver created')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+        return driver
 
-            u_name_input = self.driver.find_element(By.NAME, "username")
-            u_name_input.clear()
-            u_name_input.send_keys(self.username)
+    @staticmethod
+    def close_browser(driver: webdriver.Chrome):
+        ''' Закрывает браузер '''
+        driver.close()
+        driver.quit()
 
-            psw_input = self.driver.find_element(By.NAME, "password")
+    def _collect_cookies(self, driver: webdriver.Chrome) -> None:
+        ''' Сохраняет cookies в файл '''
+        try:
+            pickle.dump(driver.get_cookies(),
+                        open(f'cookies/{self.username}_cookies', 'wb'))
+            logger.info('cookies successful dumped')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def _load_cookies(self, driver: webdriver.Chrome) -> None:
+        ''' Загружает cookies '''
+        try:
+            for cookie in pickle.load(
+                    open(f'cookies/{self.username}_cookies', 'rb')
+                    ):
+                driver.add_cookie(cookie)
+            logger.debug('cookies loaded')
+            return driver
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def login_and_collect_cookies(self, headless=False) -> None:
+        ''' Вход в аккаунт instagram, используя имя пользователя и пароль '''
+        try:
+            driver = self.create_webdriver(headless)
+            driver.get(INSTAGRAM)
+
+            wait = WebDriverWait(driver, timeout=10)
+
+            user_name_input = wait.until(
+                EC.presence_of_element_located((By.NAME, "username"))
+                )
+            psw_input = wait.until(
+                EC.presence_of_element_located((By.NAME, "password"))
+                )
+
+            user_name_input.clear()
+            user_name_input.send_keys(self.username)
+
             psw_input.clear()
             psw_input.send_keys(self.password)
 
             psw_input.send_keys(Keys.ENTER)
-            time.sleep(5)
-            self._collect_cookies(self)
-        except Exception as ex:
-            print(ex)
 
-    def login_use_cookies(self, headless: bool = False) -> None:
+            time.sleep(10)
+
+            self._collect_cookies(driver)
+            logger.debug('func login_and_collect_cookies finished correctly')
+            self.close_browser(driver)
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def login_use_cookies(self,
+                          headless: bool = False,
+                          close_after_login: bool = True) -> None:
         ''' Вход в аккаунт instagram, используя cookies '''
-        if self.headless:
-            self._add_headless_options(self)
         try:
-            self.driver.get(INSTAGRAM)
+            driver = self.create_webdriver(headless)
+            driver.get(INSTAGRAM)
+            driver = self._load_cookies(driver)
+            driver.refresh()
 
-            self.driver.implicitly_wait(10)
-
-            self._load_cookies(self)
-            time.sleep(3)
-            self.driver.refresh()
-
-            buttons = self.driver.find_element(
+            buttons = driver.find_element(
                 By.CSS_SELECTOR, "div[role='dialog']").find_elements(
-                By.TAG_NAME, 'button')
+                    By.TAG_NAME, 'button')
+
             buttons[1].click()
+            logger.debug('success login')
+            if close_after_login:
+                self.close_browser(driver)
         except Exception as ex:
-            print(ex)
+            logger.error(ex, exc_info=True)
 
     def _collect_posts(self, save_to_file: bool = False) -> list:
         try:
@@ -248,9 +278,9 @@ class InstagramBot:
                 print(ex)
 
 
-# service = ChromeService(ChromeDriverManager().install())
-# bot = InstagramBot(username=NAME, password=PSW)
+bot = InstagramBot(username=NAME, password=PSW)
 # bot.login_and_collect_cookies()
+bot.login_use_cookies()
 # bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
