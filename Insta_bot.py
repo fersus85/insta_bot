@@ -40,56 +40,39 @@ instagram_psw: TypeAlias = str
 
 
 class InstagramBot:
-    # Insta bot by Fersus
+    '''
+    Бот для автоматизации действий в instagram.
+
+    Атрибуты
+    --------
+    username : имя пользователя Instagram
+    password : пароль пользователя Instagram
+
+    Методы
+    ------
+    login_and_collect_cookies(headless)
+        входит в аккаунт инстаграмм и сохраняет куки в файл.
+
+    save_user_posts_in_file(user,headless,scroll)
+    '''
     def __init__(self, username: instagram_username, password: instagram_psw):
-        ''' Инициализация бота '''
+        '''
+        Инициализация бота
+
+        :param username: str имя пользователя Instagram
+        :param password: str пароль пользователя Instagram
+        '''
         self.username = username
         self.password = password
-        self.service = ChromeService(ChromeDriverManager().install())
 
-    def create_webdriver(self, headless: bool = False):
-        ''' Создаёт веб-драйвер для использования браузера '''
-        options = Options()
-        if headless:
-            options.add_argument("--headless=new")
+    def login_and_collect_cookies(self, headless: bool = False) -> None:
+        '''
+        Вход в аккаунт instagram, используя имя пользователя и пароль
+
+        :param headless: bool режим работы браузера
+        '''
         try:
-            driver = webdriver.Chrome(service=self.service, options=options)
-            logger.debug('webdriver created')
-        except Exception as ex:
-            logger.error(ex, exc_info=True)
-        return driver
-
-    @staticmethod
-    def close_browser(driver: webdriver.Chrome):
-        ''' Закрывает браузер '''
-        driver.close()
-        driver.quit()
-
-    def _collect_cookies(self, driver: webdriver.Chrome) -> None:
-        ''' Сохраняет cookies в файл '''
-        try:
-            pickle.dump(driver.get_cookies(),
-                        open(f'cookies/{self.username}_cookies', 'wb'))
-            logger.info('cookies successful dumped')
-        except Exception as ex:
-            logger.error(ex, exc_info=True)
-
-    def _load_cookies(self, driver: webdriver.Chrome) -> None:
-        ''' Загружает cookies '''
-        try:
-            for cookie in pickle.load(
-                    open(f'cookies/{self.username}_cookies', 'rb')
-                    ):
-                driver.add_cookie(cookie)
-            logger.debug('cookies loaded')
-            return driver
-        except Exception as ex:
-            logger.error(ex, exc_info=True)
-
-    def login_and_collect_cookies(self, headless=False) -> None:
-        ''' Вход в аккаунт instagram, используя имя пользователя и пароль '''
-        try:
-            driver = self.create_webdriver(headless)
+            driver = self._create_webdriver(headless)
             driver.get(INSTAGRAM)
 
             wait = WebDriverWait(driver, timeout=10)
@@ -113,16 +96,103 @@ class InstagramBot:
 
             self._collect_cookies(driver)
             logger.debug('func login_and_collect_cookies finished correctly')
-            self.close_browser(driver)
+            self._close_browser(driver)
         except Exception as ex:
             logger.error(ex, exc_info=True)
 
-    def login_use_cookies(self,
-                          headless: bool = False,
-                          close_after_login: bool = True) -> None:
-        ''' Вход в аккаунт instagram, используя cookies '''
+    def save_user_posts_in_file(self,
+                                user: str,
+                                headless: bool = False,
+                                scroll: int = 2) -> None:
+        '''
+        Сохраняет список url адресов постов введенного пользователя в файл.
+
+        :param user: str имя пользователя
+        :param headless: bool режим работы браузера
+        :param scroll: int количество прокручиваний страницы пользователя
+        '''
         try:
-            driver = self.create_webdriver(headless)
+            driver = self._create_webdriver(headless)
+            logger.debug('driver created')
+            driver = self.login_use_cookies(driver)
+            driver.get(f'{INSTAGRAM}/{user}/')
+            logger.debug('reach user page')
+            for _ in range(1, scroll):
+                driver.execute_script(
+                    'window.scrollTo(0, document.body.scrollHeight);')
+                time.sleep(random.randrange(3, 7))
+            self._collect_posts(driver, save_to_file=True)
+            logger.debug('links saved in file')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    @staticmethod
+    def _create_webdriver(headless: bool = False) -> webdriver.Chrome:
+        '''
+        Создаёт веб-драйвер для использования браузера
+
+        :param headless: bool режим работы браузера
+        :return: веб-драйвер для использования браузера
+        '''
+        options = Options()
+        if headless:
+            options.add_argument("--headless=new")
+        try:
+            service = ChromeService(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            logger.debug('webdriver created')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+        return driver
+
+    @staticmethod
+    def _close_browser(driver: webdriver.Chrome) -> None:
+        '''
+        Закрывает браузер
+
+        :param driver: драйвер для управления браузером Chrome
+        '''
+        driver.close()
+        driver.quit()
+
+    def _collect_cookies(self, driver: webdriver.Chrome) -> None:
+        '''
+        Сохраняет cookies в файл
+
+        :param driver: драйвер для управления браузером Chrome
+        '''
+        try:
+            pickle.dump(driver.get_cookies(),
+                        open(f'cookies/{self.username}_cookies', 'wb'))
+            logger.info('cookies successful dumped')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def _load_cookies(self, driver: webdriver.Chrome) -> webdriver.Chrome:
+        '''
+        Загружает cookies в драйвер
+
+        :param driver: драйвер для управления браузером Chrome
+        :return: драйвер с загруженными куками
+        '''
+        try:
+            for cookie in pickle.load(
+                    open(f'cookies/{self.username}_cookies', 'rb')
+                    ):
+                driver.add_cookie(cookie)
+            logger.debug('cookies loaded')
+            return driver
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def _login_use_cookies(self,
+                           driver: webdriver.Chrome) -> None:
+        '''
+        Вход в аккаунт instagram, используя cookies
+
+        :param driver: драйвер для управления браузером Chrome
+        '''
+        try:
             driver.get(INSTAGRAM)
             driver = self._load_cookies(driver)
             driver.refresh()
@@ -133,41 +203,38 @@ class InstagramBot:
 
             buttons[1].click()
             logger.debug('success login')
-            if close_after_login:
-                self.close_browser(driver)
+            return driver
         except Exception as ex:
             logger.error(ex, exc_info=True)
 
-    def _collect_posts(self, save_to_file: bool = False) -> list:
+    def _collect_posts(self,
+                       driver: webdriver.Chrome,
+                       save_to_file: bool = False) -> Optional[list]:
+        '''
+        Собирает url адреса инстаграм постов юзера,
+        в зависимости от выбранной опции либо возвращает
+        список постов либо сохраняет его в файл.
+
+        :param driver: драйвер для управления браузером
+        :param save_to_file: режим работы save/return
+        :return: список url адресов.
+        '''
         try:
-            links = self.driver.find_elements(By.TAG_NAME, 'a')
+            links = driver.find_elements(By.TAG_NAME, 'a')
             posts_urls = [item.get_attribute('href')
                           for item in links
                           if "/p/" in item.get_attribute('href')]
+            logger.debug('links collected')
             if save_to_file:
-                user = self.driver.current_url.split('/')[3]
-                with open(f"{user}'s_posts", 'w') as file:
+                user = driver.current_url.split('/')[4]
+                with open(f"grabed posts/{user}'s_posts", 'w') as file:
                     for url in posts_urls:
-                        file.write(url)
+                        file.write(url + '\n')
             else:
+                logger.debug('returned list of url')
                 return posts_urls
         except Exception as ex:
-            print(ex)
-
-    def collect_posts_user(self, user: str,
-                           scroll: int = 2,
-                           save_to_file: bool = False) -> Optional[list]:
-        ''' save user's posts in file or return list with its '''
-        self.driver.implicitly_wait(10)
-        try:
-            self.driver.get(f'{INSTAGRAM}/{user}/')
-            for i in range(1, scroll):
-                self.driver.execute_script(
-                    'window.scrollTo(0, document.body.scrollHeight);')
-                time.sleep(random.randrange(3, 7))
-            return self._collect_posts(save_to_file)
-        except Exception as ex:
-            print(ex)
+            logger.error(ex, exc_info=True)
 
     def press_like_on_posts(self, posts: list) -> None:
         ''' press like button on each post in posts '''
@@ -182,7 +249,7 @@ class InstagramBot:
                 time.sleep(random.randrange(3, 5))
             except Exception as ex:
                 print(ex)
-                self.close_browser()
+                self._close_browser()
 
     def _is_xpath_exist(self, xpath):
         ''' inspect is exist xpath on a page '''
@@ -223,7 +290,7 @@ class InstagramBot:
             self.driver.find_element(By.XPATH, xpath).click()
         else:
             print('xpath was changed')
-            self.close_browser()
+            self._close_browser()
 
         pop_up_window = self.driver.find_element(By.CLASS_NAME, '_aano')
         for i in range(1, numb_iter):
@@ -280,10 +347,10 @@ class InstagramBot:
 
 bot = InstagramBot(username=NAME, password=PSW)
 # bot.login_and_collect_cookies()
-bot.login_use_cookies()
+bot.save_user_posts_in_file('explor1r', headless=True, scroll=3)
 # bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
 # bot.likes_on_post(posts)
 # bot.download_img('explor1r')
-# bot.close_browser()
+# bot._close_browser()
