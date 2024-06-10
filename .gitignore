@@ -1,7 +1,7 @@
 .env
 logs
 **/__pycache__/
-grabed posts
+grabed_posts
 like_user_post.py
 deriabin_evg_cookies
 ui.py

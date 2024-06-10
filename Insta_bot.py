@@ -48,12 +48,19 @@ class InstagramBot:
     username : имя пользователя Instagram
     password : пароль пользователя Instagram
 
-    Методы
+    Методы публичные
     ------
     login_and_collect_cookies(headless)
         входит в аккаунт инстаграмм и сохраняет куки в файл.
 
     save_user_posts_in_file(user,headless,scroll)
+        Сохраняет список url адресов постов введенного пользователя в файл.
+
+    user_posts_urls(user, headless, scroll)
+        Возвращает список url адресов постов введенного пользователя.
+
+    press_like_on_posts(driver, posts: list[str])
+        Принимает список url адресов постов юзера и ставит лайк на каждый пост.
     '''
     def __init__(self, username: instagram_username, password: instagram_psw):
         '''
@@ -112,19 +119,53 @@ class InstagramBot:
         :param scroll: int количество прокручиваний страницы пользователя
         '''
         try:
-            driver = self._create_webdriver(headless)
-            logger.debug('driver created')
-            driver = self.login_use_cookies(driver)
-            driver.get(f'{INSTAGRAM}/{user}/')
-            logger.debug('reach user page')
-            for _ in range(1, scroll):
-                driver.execute_script(
-                    'window.scrollTo(0, document.body.scrollHeight);')
-                time.sleep(random.randrange(3, 7))
+            driver = self._reach_user_page(user, headless, scroll)
             self._collect_posts(driver, save_to_file=True)
             logger.debug('links saved in file')
+            self._close_browser(driver)
         except Exception as ex:
             logger.error(ex, exc_info=True)
+
+    def user_posts_urls(self,
+                        user: str,
+                        headless: bool = False,
+                        scroll: int = 2) -> tuple[webdriver.Chrome, list[str]]:
+        '''
+        Возвращает список url адресов постов введенного пользователя.
+
+        :param user: str имя пользователя
+        :param headless: bool режим работы браузера
+        :param scroll: int количество прокручиваний страницы пользователя
+        :return: список url адресов постов введенного пользователя.
+        '''
+        try:
+            driver = self._reach_user_page(user, headless, scroll)
+            logger.debug('links returned')
+            return driver, self._collect_posts(driver, save_to_file=False)
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
+    def press_like_on_posts(self,
+                            driver: webdriver.Chrome,
+                            posts: list[str]) -> None:
+        '''
+        Принимает список url адресов постов юзера и ставит лайк на каждый пост.
+
+        :param driver: драйвер для управления браузером
+        :param posts: список url адресов постов юзера
+        '''
+        for post in posts[:3]:
+            try:
+                driver.get(post)
+                WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.CLASS_NAME, "xp7jhwk")
+                        )).click()
+                time.sleep(random.randrange(3, 5))
+            except Exception as ex:
+                logger.error(ex, exc_info=True)
+        self._close_browser(driver)
+        logger.debug('success liked posts')
 
     @staticmethod
     def _create_webdriver(headless: bool = False) -> webdriver.Chrome:
@@ -207,6 +248,31 @@ class InstagramBot:
         except Exception as ex:
             logger.error(ex, exc_info=True)
 
+    def _reach_user_page(self,
+                         user: str,
+                         headless: bool = False,
+                         scroll: int = 2) -> webdriver.Chrome:
+        '''
+        Заходит на страницу юзера с постами и прокручивает ее scroll раз
+
+        :param user: str имя пользователя
+        :param headless: bool режим работы браузера
+        :param scroll: int количество прокручиваний страницы пользователя
+        '''
+        try:
+            driver = self._create_webdriver(headless)
+            logger.debug('driver created')
+            driver = self._login_use_cookies(driver)
+            driver.get(f'{INSTAGRAM}/{user}/')
+            logger.debug('reach user page')
+            for _ in range(1, scroll):
+                driver.execute_script(
+                    'window.scrollTo(0, document.body.scrollHeight);')
+                time.sleep(random.randrange(3, 7))
+            return driver
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
     def _collect_posts(self,
                        driver: webdriver.Chrome,
                        save_to_file: bool = False) -> Optional[list]:
@@ -227,7 +293,7 @@ class InstagramBot:
             logger.debug('links collected')
             if save_to_file:
                 user = driver.current_url.split('/')[4]
-                with open(f"grabed posts/{user}'s_posts", 'w') as file:
+                with open(f"grabed_posts/{user}'s_posts", 'w') as file:
                     for url in posts_urls:
                         file.write(url + '\n')
             else:
@@ -235,21 +301,6 @@ class InstagramBot:
                 return posts_urls
         except Exception as ex:
             logger.error(ex, exc_info=True)
-
-    def press_like_on_posts(self, posts: list) -> None:
-        ''' press like button on each post in posts '''
-        self.driver.implicitly_wait(10)
-        for post in posts[:3]:
-            try:
-                self.driver.get(post)
-                WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable(
-                        (By.CLASS_NAME, "xp7jhwk")
-                        )).click()
-                time.sleep(random.randrange(3, 5))
-            except Exception as ex:
-                print(ex)
-                self._close_browser()
 
     def _is_xpath_exist(self, xpath):
         ''' inspect is exist xpath on a page '''
@@ -347,7 +398,9 @@ class InstagramBot:
 
 bot = InstagramBot(username=NAME, password=PSW)
 # bot.login_and_collect_cookies()
-bot.save_user_posts_in_file('explor1r', headless=True, scroll=3)
+# bot.save_user_posts_in_file('explor1r', headless=True, scroll=3)
+driver, posts = bot.user_posts_urls('explor1r')
+bot.press_like_on_posts(driver, posts)
 # bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
