@@ -48,7 +48,7 @@ class InstagramBot:
     username : имя пользователя Instagram
     password : пароль пользователя Instagram
 
-    Методы публичные
+    Публичные методы
     ------
     login_and_collect_cookies(headless)
         входит в аккаунт инстаграмм и сохраняет куки в файл.
@@ -61,6 +61,9 @@ class InstagramBot:
 
     press_like_on_posts(driver, posts: list[str])
         Принимает список url адресов постов юзера и ставит лайк на каждый пост.
+
+    download_images(user, scroll, headless)
+        Cохраняет фотографии со страницы юзера локально.
     '''
     def __init__(self, username: instagram_username, password: instagram_psw):
         '''
@@ -154,18 +157,43 @@ class InstagramBot:
         :param driver: драйвер для управления браузером
         :param posts: список url адресов постов юзера
         '''
-        for post in posts[:3]:
+        for post in posts[:2]:
             try:
+                like = "xp7jhwk"
                 driver.get(post)
                 WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable(
-                        (By.CLASS_NAME, "xp7jhwk")
-                        )).click()
+                    EC.element_to_be_clickable((By.CLASS_NAME, like))
+                    ).click()
+                driver.find_element(By.CLASS_NAME, like).click()
                 time.sleep(random.randrange(3, 5))
             except Exception as ex:
                 logger.error(ex, exc_info=True)
         self._close_browser(driver)
         logger.debug('success liked posts')
+
+    def download_images(self,
+                        user: str,
+                        scroll: int = 2,
+                        headless: bool = False) -> None:
+        '''
+        Cохраняет фотографии со страницы юзера локально.
+
+        :param user: str имя пользователя для скачивания фото.
+        :param scroll: int кол-во прокручиваний страницы.
+        :param headless: bool режим управления браузером.
+        '''
+        try:
+            driver = self._reach_user_page(user, headless, scroll)
+            wait = WebDriverWait(driver, timeout=10)
+            links = wait.until(
+                EC.presence_of_all_elements_located((By.TAG_NAME, 'img')))
+            images = [item.get_attribute('src') for item in links]
+            logger.debug('img links collected')
+            path = self._create_folder(user)
+            self._save_imgs(images, path, user)
+            logger.debug('all img saved')
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
 
     @staticmethod
     def _create_webdriver(headless: bool = False) -> webdriver.Chrome:
@@ -306,30 +334,29 @@ class InstagramBot:
         ''' inspect is exist xpath on a page '''
         return bool(self.driver.find_elements(By.XPATH, xpath))
 
-    def download_images(self, user: str, scroll: int = 2) -> None:
-        ''' download images from instagram page '''
-        self.driver.implicitly_wait(10)
+    @staticmethod
+    def _save_imgs(urls: list, path: str, user: str) -> None:
+        counter = 1
+        for url in urls:
+            try:
+                if 'data:image' not in url:
+                    save_as = os.path.join(path, f'{user}_{str(counter)}.jpg')
+                    wget.download(url, save_as)
+                    logger.debug(f'img {counter} saved')
+                    counter += 1
+            except Exception as ex:
+                logger.debug(ex, exc_info=True)
+
+    @staticmethod
+    def _create_folder(user: str):
         try:
-            self.driver.get(f'{INSTAGRAM}/{user}/')
-            for i in range(1, scroll):
-                self.driver.execute_script(
-                    'window.scrollTo(0, document.body.scrollHeight);')
-                time.sleep(random.randrange(3, 7))
-
-            links = self.driver.find_elements(By.TAG_NAME, 'img')
-            images = [item.get_attribute('src') for item in links]
-
             path = os.getcwd()
             path = os.path.join(path, user)
             os.mkdir(path)
-            counter = 0
-            for image in images:
-                save_as = (os.path.join(path, user + str(counter) + '.jpg'))
-                wget.download(image, save_as)
-                print('ok')
-                counter += 1
-        except Exception as ex:
-            print(ex)
+            logger.debug('dir created')
+            return path
+        except FileExistsError as ex:
+            logger.warning(ex)
 
     def grab_followers(self,  user: str, numb_iter: int = 3) -> None:
         ''' Write links user's followers in file '''
@@ -399,8 +426,9 @@ class InstagramBot:
 bot = InstagramBot(username=NAME, password=PSW)
 # bot.login_and_collect_cookies()
 # bot.save_user_posts_in_file('explor1r', headless=True, scroll=3)
-driver, posts = bot.user_posts_urls('explor1r')
-bot.press_like_on_posts(driver, posts)
+# driver, posts = bot.user_posts_urls('explor1r')
+# bot.press_like_on_posts(driver, posts)
+bot.download_images('explor1r')
 # bot.follow_and_like("explor1r's followers.txt")
 # bot.grab_followers(user='explor1r')
 # posts = bot.collect_posts_user('explor1r')
